@@ -1,0 +1,68 @@
+rules_version = '2';
+service cloud.firestore {
+ match /databases/{database}/documents {
+  function signed(){return request.auth!=null;}
+  function own(uid){return signed()&&request.auth.uid==uid;}
+  function user(){return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;}
+  function active(){return signed()&&user().active==true;}
+  function admin(){return active()&&user().role=='admin';}
+  function employer(){return active()&&user().role=='employer'&&user().companyApproved==true;}
+  function str(v,max){return v is string&&v.size()<=max;}
+  function validUser(d){return d.keys().hasAll(['name','email','role','active','companyApproved','headline','phone','location','bio','skills','education','experience','company','website','photo','saved'])
+   &&d.keys().hasOnly(['name','email','role','active','companyApproved','headline','phone','location','bio','skills','education','experience','company','website','photo','saved'])
+   &&str(d.name,80)&&d.name.size()>=2&&str(d.email,254)&&d.role in ['candidate','employer','admin']&&d.active is bool&&d.companyApproved is bool
+   &&str(d.headline,200)&&str(d.phone,40)&&str(d.location,200)&&str(d.bio,2000)&&str(d.skills,2000)&&str(d.education,2000)&&str(d.experience,2000)&&str(d.company,200)&&str(d.website,200)&&str(d.photo,140000)&&d.saved is list&&d.saved.size()<=300;}
+  match /users/{uid}{
+   allow read:if own(uid)||admin();
+   allow create:if own(uid)&&validUser(request.resource.data)&&request.resource.data.email==request.auth.token.email&&request.resource.data.role in ['candidate','employer']&&request.resource.data.active==true&&request.resource.data.companyApproved==false;
+   allow update:if validUser(request.resource.data)&&(
+    (own(uid)&&active()&&request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name','headline','phone','location','bio','skills','education','experience','company','website','photo','saved','companyApproved'])
+     &&(request.resource.data.companyApproved==resource.data.companyApproved||request.resource.data.companyApproved==false)
+     &&(request.resource.data.company==resource.data.company&&request.resource.data.website==resource.data.website||request.resource.data.companyApproved==false))
+    ||(admin()&&request.auth.uid!=uid&&request.resource.data.diff(resource.data).affectedKeys().hasOnly(['active','companyApproved'])));
+   allow delete:if false;
+  }
+  function validJob(d){return d.keys().hasAll(['ownerId','company','title','description','skills','location','salary','type','mode','field','deadline','deadlineMs','createdAt','approval','open'])
+   &&d.keys().hasOnly(['ownerId','company','title','description','skills','location','salary','type','mode','field','deadline','deadlineMs','createdAt','approval','open'])
+   &&str(d.ownerId,128)&&str(d.company,200)&&d.company.size()>=2&&str(d.title,120)&&d.title.size()>=2&&str(d.description,6000)&&d.description.size()>=2&&str(d.skills,1000)&&str(d.location,120)&&str(d.salary,120)
+   &&d.type in ['Full-time','Part-time','Internship','Contract']&&d.mode in ['Remote','On-site','Hybrid']&&d.field in ['Engineering','Design','Marketing','Business','Data','Other']
+   &&str(d.deadline,40)&&d.deadlineMs is int&&str(d.createdAt,40)&&d.approval in ['pending','approved','rejected']&&d.open is bool;}
+  match /jobs/{id}{
+   allow read:if active()&&(admin()||resource.data.ownerId==request.auth.uid||(resource.data.approval=='approved'&&resource.data.open==true));
+   allow create:if validJob(request.resource.data)&&request.resource.data.ownerId==request.auth.uid&&(admin()||(employer()&&request.resource.data.approval=='pending'&&request.resource.data.company==user().company));
+   allow update:if validJob(request.resource.data)&&request.resource.data.ownerId==resource.data.ownerId&&request.resource.data.createdAt==resource.data.createdAt&&(admin()||(
+    employer()&&resource.data.ownerId==request.auth.uid&&request.resource.data.company==resource.data.company
+    &&(request.resource.data.diff(resource.data).affectedKeys().hasOnly(['open'])||request.resource.data.approval=='pending')));
+   allow delete:if admin();
+  }
+  function job(id){return get(/databases/$(database)/documents/jobs/$(id)).data;}
+  function validApplication(d){return d.keys().hasAll(['jobId','ownerId','candidateId','jobTitle','company','name','email','headline','skills','education','experience','cover','status','createdAt','cvPath','cvName'])
+   &&d.keys().hasOnly(['jobId','ownerId','candidateId','jobTitle','company','name','email','headline','skills','education','experience','cover','status','createdAt','cvPath','cvName'])
+   &&str(d.jobId,128)&&str(d.ownerId,128)&&str(d.candidateId,128)&&str(d.jobTitle,120)&&str(d.company,200)&&str(d.name,80)&&str(d.email,254)&&str(d.headline,200)&&str(d.skills,2000)&&str(d.education,2000)&&str(d.experience,2000)&&str(d.cover,3000)&&str(d.createdAt,40)&&str(d.cvPath,400)&&str(d.cvName,255)&&d.status in ['Applied','Under Review','Shortlisted','Selected','Rejected','Withdrawn'];}
+  match /applications/{id}{
+   allow get:if active()&&(id.matches('.*_'+request.auth.uid)||admin()||resource.data.candidateId==request.auth.uid||resource.data.ownerId==request.auth.uid);
+   allow list:if active()&&(admin()||resource.data.candidateId==request.auth.uid||resource.data.ownerId==request.auth.uid);
+   allow create:if active()&&user().role=='candidate'&&validApplication(request.resource.data)
+    &&id==request.resource.data.jobId+'_'+request.auth.uid&&request.resource.data.candidateId==request.auth.uid
+    &&request.resource.data.ownerId==job(request.resource.data.jobId).ownerId&&request.resource.data.jobTitle==job(request.resource.data.jobId).title&&request.resource.data.company==job(request.resource.data.jobId).company
+    &&job(request.resource.data.jobId).approval=='approved'&&job(request.resource.data.jobId).open==true&&timestamp.value(job(request.resource.data.jobId).deadlineMs)>request.time
+    &&request.resource.data.headline==user().headline&&request.resource.data.skills==user().skills&&request.resource.data.education==user().education&&request.resource.data.experience==user().experience
+    &&request.resource.data.name==user().name&&request.resource.data.email==user().email&&request.resource.data.status=='Applied'
+    &&request.resource.data.cvPath==''&&request.resource.data.cvName=='';
+   allow update:if active()&&validApplication(request.resource.data)
+    &&request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])&&(
+      ((admin()||(employer()&&resource.data.ownerId==request.auth.uid))
+        &&resource.data.status!='Withdrawn'&&request.resource.data.status!='Withdrawn')
+      ||(user().role=='candidate'&&resource.data.candidateId==request.auth.uid
+        &&resource.data.status in ['Applied','Under Review','Shortlisted']
+        &&request.resource.data.status=='Withdrawn'));
+   allow delete:if false;
+  }
+  match /reports/{id}{
+   allow create:if active()&&request.resource.data.keys().hasAll(['jobId','reporterId','reason','resolved','createdAt'])&&request.resource.data.keys().hasOnly(['jobId','reporterId','reason','resolved','createdAt'])&&request.resource.data.reporterId==request.auth.uid&&str(request.resource.data.jobId,128)&&str(request.resource.data.reason,1000)&&request.resource.data.reason.size()>=2&&request.resource.data.resolved==false&&str(request.resource.data.createdAt,40);
+   allow read:if admin();
+   allow update:if admin()&&request.resource.data.diff(resource.data).affectedKeys().hasOnly(['resolved'])&&request.resource.data.resolved is bool;
+   allow delete:if false;
+  }
+ }
+}

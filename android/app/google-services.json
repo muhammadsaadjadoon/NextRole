@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "840282654710",
+    "project_id": "nextrole-cedbc",
+    "storage_bucket": "nextrole-cedbc.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:840282654710:android:1940e703d2c4dc1036e9d7",
+        "android_client_info": {
+          "package_name": "com.saadi.nextrole"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "840282654710-fiot3hs8rl3o4rqd1rldnc2sq2j64nul.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA9SenoqWy-Y3waFhxLkCtAGreYYekzvjI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "840282654710-fiot3hs8rl3o4rqd1rldnc2sq2j64nul.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
