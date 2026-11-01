@@ -53,7 +53,7 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyA9SenoqWy-Y3waFhxLkCtAGreYYekzvjI',
+    apiKey: 'YOUR_API_KEY',
     appId: '1:840282654710:android:1940e703d2c4dc1036e9d7',
     messagingSenderId: '840282654710',
     projectId: 'nextrole-cedbc',
